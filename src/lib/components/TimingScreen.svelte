@@ -1,6 +1,7 @@
 <script lang="ts">
   import { session, checkpoints } from '../stores/session';
   import { isValidTimeFormat } from '../utils/time';
+  import type { Team } from '../types';
   
   let selectedRunner = '';
   let selectedCheckpoint = '';
@@ -32,6 +33,31 @@
     return time?.time || '';
   }
 
+  function getTeamById(teamId: string): Team | undefined {
+    return $session.teams.find(t => t.id === teamId);
+  }
+
+  function getRunnersByTeam() {
+    const teams = new Map();
+    
+    $session.runners.forEach(runner => {
+      const team = getTeamById(runner.teamId);
+      const teamName = team?.name || 'No Team';
+      const teamColor = team?.color || '#6b7280';
+      
+      if (!teams.has(teamName)) {
+        teams.set(teamName, { runners: [], color: teamColor });
+      }
+      teams.get(teamName).runners.push(runner);
+    });
+    
+    return Array.from(teams.entries()).map(([name, data]) => ({
+      name,
+      color: data.color,
+      runners: data.runners
+    }));
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter') {
       addTime();
@@ -59,8 +85,9 @@
         <select bind:value={selectedRunner} class="runner-select">
           <option value="">Select Runner</option>
           {#each $session.runners as runner}
+            {@const team = getTeamById(runner.teamId)}
             <option value={runner.id}>
-              {runner.name} {runner.bibNumber ? `(#${runner.bibNumber})` : ''}
+              {runner.name} ({runner.grade}) {runner.bibNumber ? `#${runner.bibNumber}` : ''} - {team?.name || 'No Team'}
             </option>
           {/each}
         </select>
@@ -91,38 +118,48 @@
       </div>
     </div>
 
-    <div class="runners-grid">
-      {#each $session.runners as runner (runner.id)}
-        <div class="runner-card">
-          <div class="runner-header">
-            <h4>{runner.name}</h4>
-            <div class="runner-meta">
-              Age: {runner.age}
-              {#if runner.bibNumber}• Bib: {runner.bibNumber}{/if}
-            </div>
-          </div>
-
-          <div class="checkpoints">
-            {#each $checkpoints as checkpoint}
-              {@const time = getTimeForCheckpoint(runner.id, checkpoint)}
-              <div class="checkpoint">
-                <div class="checkpoint-label">{checkpoint}</div>
-                <div class="checkpoint-time" class:has-time={time}>
-                  {time || '--:--'}
+    <div class="teams-container">
+      {#each getRunnersByTeam() as teamGroup}
+        <div class="team-section">
+          <h3 class="team-header" style="color: {teamGroup.color}">
+            {teamGroup.name} ({teamGroup.runners.length})
+          </h3>
+          
+          <div class="runners-grid">
+            {#each teamGroup.runners as runner (runner.id)}
+              <div class="runner-card" style="border-left: 4px solid {teamGroup.color}">
+                <div class="runner-header">
+                  <h4>{runner.name}</h4>
+                  <div class="runner-meta">
+                    {runner.grade}
+                    {#if runner.bibNumber}• Bib: {runner.bibNumber}{/if}
+                  </div>
                 </div>
+
+                <div class="checkpoints">
+                  {#each $checkpoints as checkpoint}
+                    {@const time = getTimeForCheckpoint(runner.id, checkpoint)}
+                    <div class="checkpoint">
+                      <div class="checkpoint-label">{checkpoint}</div>
+                      <div class="checkpoint-time" class:has-time={time}>
+                        {time || '--:--'}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+
+                {#each [getRunnerTimes(runner.id)] as runnerTimes}
+                  {@const completedCheckpoints = runnerTimes.length}
+                  <div class="progress-bar">
+                    <div 
+                      class="progress-fill" 
+                      style="width: {(completedCheckpoints / $checkpoints.length) * 100}%; background-color: {teamGroup.color}"
+                    ></div>
+                  </div>
+                {/each}
               </div>
             {/each}
           </div>
-
-          {#each [getRunnerTimes(runner.id)] as runnerTimes}
-            {@const completedCheckpoints = runnerTimes.length}
-            <div class="progress-bar">
-              <div 
-                class="progress-fill" 
-                style="width: {(completedCheckpoints / $checkpoints.length) * 100}%"
-              ></div>
-            </div>
-          {/each}
         </div>
       {/each}
     </div>
@@ -132,7 +169,7 @@
 <style>
   .timing-container {
     padding: 1rem;
-    max-width: 800px;
+    max-width: 1000px;
     margin: 0 auto;
   }
 
@@ -175,7 +212,7 @@
 
   .entry-form {
     display: grid;
-    grid-template-columns: 1fr 1fr 120px auto;
+    grid-template-columns: 2fr 1fr 120px auto;
     gap: 0.75rem;
     align-items: end;
   }
@@ -220,14 +257,32 @@
     cursor: not-allowed;
   }
 
+  .teams-container {
+    display: grid;
+    gap: 2rem;
+  }
+
+  .team-section {
+    background: var(--bg-secondary);
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+  }
+
+  .team-header {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
   .runners-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1rem;
   }
 
   .runner-card {
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
     border: 1px solid var(--border);
     border-radius: 0.75rem;
     padding: 1.5rem;
@@ -259,7 +314,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem;
-    background: var(--bg-primary);
+    background: var(--bg-secondary);
     border-radius: 0.5rem;
   }
 
@@ -280,14 +335,13 @@
 
   .progress-bar {
     height: 4px;
-    background: var(--bg-primary);
+    background: var(--bg-secondary);
     border-radius: 2px;
     overflow: hidden;
   }
 
   .progress-fill {
     height: 100%;
-    background: var(--primary);
     transition: width 0.3s ease;
   }
 

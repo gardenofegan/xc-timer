@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import type { TimingSession, Runner, TimeEntry, Screen } from '../types';
+import type { TimingSession, Runner, Team, TimeEntry, Screen } from '../types';
 import { browser } from '../utils/browser';
 
 const STORAGE_KEY = 'xc-timer-session';
@@ -8,6 +8,7 @@ function createSessionStore() {
   const defaultSession: TimingSession = {
     id: crypto.randomUUID(),
     name: 'New Session',
+    teams: [],
     runners: [],
     times: [],
     unit: 'km',
@@ -23,6 +24,33 @@ function createSessionStore() {
     if (stored) {
       try {
         const session = JSON.parse(stored);
+        // Migrate old sessions that don't have teams
+        if (!session.teams) {
+          session.teams = [];
+        }
+        // Migrate old runners that have age instead of grade
+        if (session.runners) {
+          session.runners = session.runners.map((runner: any) => {
+            if (runner.age && !runner.grade) {
+              // Convert age to approximate grade
+              let grade: 'Freshman' | 'Sophomore' | 'Junior' | 'Senior' = 'Freshman';
+              if (runner.age >= 18) grade = 'Senior';
+              else if (runner.age >= 17) grade = 'Junior';
+              else if (runner.age >= 16) grade = 'Sophomore';
+              
+              return {
+                ...runner,
+                grade,
+                teamId: runner.teamId || '',
+                age: undefined
+              };
+            }
+            return {
+              ...runner,
+              teamId: runner.teamId || ''
+            };
+          });
+        }
         set(session);
       } catch (e) {
         console.error('Failed to load session from storage:', e);
@@ -41,6 +69,21 @@ function createSessionStore() {
     subscribe,
     set,
     update,
+    addTeam: (team: Omit<Team, 'id'>) => {
+      update(session => ({
+        ...session,
+        teams: [...session.teams, { ...team, id: crypto.randomUUID() }],
+        updated: Date.now()
+      }));
+    },
+    removeTeam: (teamId: string) => {
+      update(session => ({
+        ...session,
+        teams: session.teams.filter(t => t.id !== teamId),
+        runners: session.runners.map(r => r.teamId === teamId ? { ...r, teamId: '' } : r),
+        updated: Date.now()
+      }));
+    },
     addRunner: (runner: Omit<Runner, 'id'>) => {
       update(session => ({
         ...session,

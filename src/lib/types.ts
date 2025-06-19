@@ -1,8 +1,15 @@
 export interface Runner {
   id: string;
   name: string;
-  age: number;
+  grade: 'Freshman' | 'Sophomore' | 'Junior' | 'Senior';
   bibNumber?: number;
+  teamId: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export interface TimeEntry {
@@ -15,6 +22,7 @@ export interface TimeEntry {
 export interface TimingSession {
   id: string;
   name: string;
+  teams: Team[];
   runners: Runner[];
   times: TimeEntry[];
   unit: 'km' | 'miles';
