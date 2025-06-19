@@ -39,14 +39,16 @@ function createSessionStore() {
               else if (runner.age >= 16) grade = 'Sophomore';
               
               return {
-                ...runner,
+                id: runner.id,
+                name: runner.name,
                 grade,
-                teamId: runner.teamId || '',
-                age: undefined
+                teamId: runner.teamId || ''
               };
             }
             return {
-              ...runner,
+              id: runner.id,
+              name: runner.name,
+              grade: runner.grade || 'Freshman',
               teamId: runner.teamId || ''
             };
           });

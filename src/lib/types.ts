@@ -2,7 +2,6 @@ export interface Runner {
   id: string;
   name: string;
   grade: 'Freshman' | 'Sophomore' | 'Junior' | 'Senior';
-  bibNumber?: number;
   teamId: string;
 }
 

@@ -4,7 +4,6 @@
   
   let name = '';
   let grade: 'Freshman' | 'Sophomore' | 'Junior' | 'Senior' = 'Freshman';
-  let bibNumber = '';
   let selectedTeamId = '';
   
   // Team creation
@@ -44,14 +43,12 @@
     session.addRunner({
       name: name.trim(),
       grade,
-      bibNumber: bibNumber ? parseInt(bibNumber, 10) : undefined,
       teamId: selectedTeamId
     });
 
     // Reset form
     name = '';
     grade = 'Freshman';
-    bibNumber = '';
   }
 
   function removeRunner(runnerId: string) {
@@ -203,19 +200,19 @@
           </select>
         </div>
 
-        <div class="form-group">
-          <label for="name">Runner Name</label>
-          <input 
-            id="name"
-            type="text" 
-            bind:value={name} 
-            placeholder="Enter runner name"
-            on:keydown={handleKeydown}
-            required
-          />
-        </div>
-        
         <div class="form-row">
+          <div class="form-group">
+            <label for="name">Runner Name</label>
+            <input 
+              id="name"
+              type="text" 
+              bind:value={name} 
+              placeholder="Enter runner name"
+              on:keydown={handleKeydown}
+              required
+            />
+          </div>
+          
           <div class="form-group">
             <label for="grade">Grade</label>
             <select id="grade" bind:value={grade} required>
@@ -224,18 +221,6 @@
               <option value="Junior">Junior</option>
               <option value="Senior">Senior</option>
             </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="bib">Bib # (Optional)</label>
-            <input 
-              id="bib"
-              type="number" 
-              bind:value={bibNumber} 
-              placeholder="Bib"
-              min="1"
-              on:keydown={handleKeydown}
-            />
           </div>
         </div>
 
@@ -260,9 +245,6 @@
                   <div class="runner-name">{runner.name}</div>
                   <div class="runner-details">
                     {runner.grade}
-                    {#if runner.bibNumber}
-                      • Bib: {runner.bibNumber}
-                    {/if}
                   </div>
                 </div>
                 <button 

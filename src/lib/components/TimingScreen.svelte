@@ -87,7 +87,7 @@
           {#each $session.runners as runner}
             {@const team = getTeamById(runner.teamId)}
             <option value={runner.id}>
-              {runner.name} ({runner.grade}) {runner.bibNumber ? `#${runner.bibNumber}` : ''} - {team?.name || 'No Team'}
+              {runner.name} ({runner.grade}) - {team?.name || 'No Team'}
             </option>
           {/each}
         </select>
@@ -132,7 +132,6 @@
                   <h4>{runner.name}</h4>
                   <div class="runner-meta">
                     {runner.grade}
-                    {#if runner.bibNumber}• Bib: {runner.bibNumber}{/if}
                   </div>
                 </div>
 
