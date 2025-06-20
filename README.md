@@ -119,7 +119,7 @@ The app uses a simple but flexible data model:
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/cross-country-timer.git
+git clone https://github.com/yourusername/xc-timer.git
 cd cross-country-timer
 
 # Install dependencies
@@ -148,7 +148,7 @@ This creates a `dist/` folder with optimized, production-ready files.
 The app is configured for automatic deployment to GitHub Pages:
 1. Push to the `main` branch
 2. GitHub Actions automatically builds and deploys
-3. Your app will be available at `https://yourusername.github.io/cross-country-timer/`
+3. Your app will be available at `https://yourusername.github.io/xc-timer/`
 
 ## 🌟 Why This App?
 

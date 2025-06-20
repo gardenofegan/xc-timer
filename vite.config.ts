@@ -4,14 +4,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/cross-country-timer/',
+  base: '/xc-timer/',
   plugins: [
     svelte(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Cross Country Timer',
+        name: 'XC Timer',
         short_name: 'XC Timer',
         description: 'A simple cross-country running timer app',
         theme_color: '#22c55e',
