@@ -16,6 +16,7 @@ export interface TimeEntry {
   checkpoint: string; // '1K', '2K', '3K', '4K', '5K' or '1M', '2M', '3M', '3.1M'
   time: string; // MM:SS format
   timestamp: number;
+  raceName?: string; // Optional race name for the time entry
 }
 
 export interface TimingSession {
@@ -27,6 +28,7 @@ export interface TimingSession {
   unit: 'km' | 'miles';
   created: number;
   updated: number;
+  currentRace?: string; // Current race being timed
 }
 
 export type Screen = 'setup' | 'timing' | 'share' | 'import';

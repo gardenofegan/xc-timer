@@ -12,10 +12,16 @@
   // Selection state
   let selectedTeamIds: string[] = [];
   let selectedCheckpoint = '';
+  let raceName = '';
   
   // Runner state for timing
   let availableRunners: Runner[] = [];
   let completedRunners: Array<Runner & { recordedTime: string }> = [];
+
+  // Initialize race name from session
+  $: if ($session.currentRace && !raceName) {
+    raceName = $session.currentRace;
+  }
 
   // Update available runners when teams, checkpoint selection, or session times change
   $: if (selectedTeamIds.length > 0 && selectedCheckpoint && $session) {
@@ -54,7 +60,10 @@
   }
 
   function startTimer() {
-    if (selectedTeamIds.length === 0 || !selectedCheckpoint) return;
+    if (selectedTeamIds.length === 0 || !selectedCheckpoint || !raceName.trim()) return;
+    
+    // Update session with current race name
+    session.setCurrentRace(raceName.trim());
     
     startTime = Date.now();
     currentTime = 0;
@@ -114,12 +123,12 @@
     
     const timeString = formatTimeForStorage(currentTime);
     
-    // Add time to session
+    // Add time to session with current race name
     session.addTime({
       runnerId: runner.id,
       checkpoint: selectedCheckpoint,
       time: timeString
-    });
+    }, raceName.trim());
   }
 
   function getTeamById(teamId: string): Team | undefined {
@@ -158,12 +167,29 @@
   </div>
 
   <div class="controls-section">
+    <div class="race-input-section">
+      <div class="form-group">
+        <label for="race-name">Race Name</label>
+        <input 
+          id="race-name"
+          type="text" 
+          bind:value={raceName} 
+          placeholder="e.g., State Championship, League Meet"
+          disabled={isTimerRunning}
+          class="race-input"
+        />
+        {#if !raceName.trim()}
+          <div class="input-hint">Enter a race name to begin timing</div>
+        {/if}
+      </div>
+    </div>
+
     <div class="timer-controls">
       {#if !isTimerRunning}
         <button 
           class="timer-btn start-btn" 
           on:click={startTimer}
-          disabled={selectedTeamIds.length === 0 || !selectedCheckpoint}
+          disabled={selectedTeamIds.length === 0 || !selectedCheckpoint || !raceName.trim()}
         >
           ▶️ Start Timer
         </button>
@@ -217,10 +243,10 @@
     </div>
   </div>
 
-  {#if selectedTeamIds.length > 0 && selectedCheckpoint}
+  {#if selectedTeamIds.length > 0 && selectedCheckpoint && raceName.trim()}
     <div class="timing-info">
       <div class="timing-summary">
-        <strong>Timing:</strong> {getSelectedTeamNames()} at {selectedCheckpoint}
+        <strong>Race:</strong> {raceName} • <strong>Timing:</strong> {getSelectedTeamNames()} at {selectedCheckpoint}
         <span class="runner-count">
           ({availableRunners.length} pending, {completedRunners.length} completed)
         </span>
@@ -287,7 +313,7 @@
   {:else}
     <div class="setup-message">
       <h3>Setup Required</h3>
-      <p>Please select team(s) and a checkpoint to begin timing.</p>
+      <p>Please enter a race name, select team(s), and choose a checkpoint to begin timing.</p>
       
       {#if $session.teams.length === 0}
         <p class="warning">⚠️ No teams created yet. Go to Setup to create teams and add runners.</p>
@@ -343,6 +369,51 @@
     padding: 1.5rem;
     border-radius: 0.75rem;
     margin-bottom: 2rem;
+  }
+
+  .race-input-section {
+    margin-bottom: 2rem;
+  }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .race-input {
+    width: 100%;
+    padding: 0.875rem;
+    border: 2px solid var(--border);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+  }
+
+  .race-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-alpha);
+  }
+
+  .race-input:disabled {
+    background: var(--bg-hover);
+    color: var(--text-disabled);
+    cursor: not-allowed;
+  }
+
+  .input-hint {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    font-style: italic;
   }
 
   .timer-controls {

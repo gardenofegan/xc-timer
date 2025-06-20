@@ -13,7 +13,8 @@ function createSessionStore() {
     times: [],
     unit: 'km',
     created: Date.now(),
-    updated: Date.now()
+    updated: Date.now(),
+    currentRace: ''
   };
 
   const { subscribe, set, update } = writable<TimingSession>(defaultSession);
@@ -27,6 +28,10 @@ function createSessionStore() {
         // Migrate old sessions that don't have teams
         if (!session.teams) {
           session.teams = [];
+        }
+        // Migrate old sessions that don't have currentRace
+        if (!session.currentRace) {
+          session.currentRace = '';
         }
         // Migrate old runners that have age instead of grade
         if (session.runners) {
@@ -101,12 +106,12 @@ function createSessionStore() {
         updated: Date.now()
       }));
     },
-    addTime: (timeEntry: Omit<TimeEntry, 'timestamp'>) => {
+    addTime: (timeEntry: Omit<TimeEntry, 'timestamp' | 'raceName'>, raceName?: string) => {
       update(session => ({
         ...session,
         times: [...session.times.filter(t => 
           !(t.runnerId === timeEntry.runnerId && t.checkpoint === timeEntry.checkpoint)
-        ), { ...timeEntry, timestamp: Date.now() }],
+        ), { ...timeEntry, timestamp: Date.now(), raceName: raceName || session.currentRace }],
         updated: Date.now()
       }));
     },
@@ -123,6 +128,13 @@ function createSessionStore() {
       update(session => ({
         ...session,
         unit,
+        updated: Date.now()
+      }));
+    },
+    setCurrentRace: (raceName: string) => {
+      update(session => ({
+        ...session,
+        currentRace: raceName,
         updated: Date.now()
       }));
     },
