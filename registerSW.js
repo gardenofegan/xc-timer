@@ -1,1 +1,1 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/cross-country-timer/sw.js', { scope: '/cross-country-timer/' })})}
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/xc-timer/sw.js', { scope: '/xc-timer/' })})}
