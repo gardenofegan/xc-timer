@@ -290,7 +290,10 @@
             on:click={resetCheckpointTimes}
             title="Clear all times for {getSelectedTeamNames()} at {selectedCheckpoint}"
           >
-            🗑️ Reset Times
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14zM10 11v6M14 11v6"/>
+            </svg>
+            Reset Times
           </button>
         </div>
         <div class="completed-list">
@@ -310,7 +313,9 @@
                   on:click={() => unsetRunnerTime(runner)}
                   title="Remove time and return {runner.name} to active timing"
                 >
-                  ↩️
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 14l-5-5 5-5M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H12"/>
+                  </svg>
                 </button>
               </div>
             </div>
@@ -651,11 +656,19 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .reset-checkpoint-btn:hover {
     background: var(--danger-hover);
     transform: translateY(-1px);
+  }
+
+  .reset-checkpoint-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .completed-list {
@@ -694,20 +707,25 @@
     color: white;
     border: none;
     padding: 0.5rem;
-    border-radius: 0.5rem;
+    border-radius: 0.375rem;
     cursor: pointer;
-    font-size: 1rem;
     transition: all 0.2s ease;
-    min-width: 36px;
-    height: 36px;
+    width: 2rem;
+    height: 2rem;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
 
   .unset-btn:hover {
     background: var(--warning-hover);
-    transform: scale(1.1);
+    transform: scale(1.05);
+  }
+
+  .unset-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .setup-message, .no-runners-message {

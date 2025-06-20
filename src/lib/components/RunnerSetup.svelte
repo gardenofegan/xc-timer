@@ -226,7 +226,9 @@
             on:click={() => confirmRemoveTeam(team.id)}
             title="Remove team"
           >
-            ✕
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
           </button>
         </div>
       {/each}
@@ -311,7 +313,9 @@
                   on:click={() => confirmRemoveRunner(runner.id)}
                   title="Remove runner"
                 >
-                  ✕
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
                 </button>
               </div>
             {/each}
@@ -662,17 +666,25 @@
     background: var(--danger);
     color: white;
     border: none;
-    border-radius: 50%;
+    border-radius: 0.375rem;
     width: 2rem;
     height: 2rem;
     cursor: pointer;
-    font-size: 0.875rem;
     transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
   .remove-btn:hover {
     background: var(--danger-hover);
-    transform: scale(1.1);
+    transform: scale(1.05);
+  }
+
+  .remove-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .empty-state {
