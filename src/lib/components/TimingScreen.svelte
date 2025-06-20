@@ -18,7 +18,7 @@
   let completedRunners: Array<Runner & { recordedTime: string }> = [];
 
   $: {
-    // Update available runners when teams or checkpoint selection changes
+    // Update available runners when teams, checkpoint selection, or session times change
     if (selectedTeamIds.length > 0 && selectedCheckpoint) {
       updateAvailableRunners();
     } else {
@@ -33,8 +33,8 @@
     );
     
     // Split runners into available (no time for this checkpoint) and completed (has time)
-    availableRunners = [];
-    completedRunners = [];
+    const newAvailableRunners: Runner[] = [];
+    const newCompletedRunners: Array<Runner & { recordedTime: string }> = [];
     
     teamRunners.forEach(runner => {
       const existingTime = $session.times.find(t => 
@@ -42,14 +42,17 @@
       );
       
       if (existingTime) {
-        completedRunners.push({
+        newCompletedRunners.push({
           ...runner,
           recordedTime: existingTime.time
         });
       } else {
-        availableRunners.push(runner);
+        newAvailableRunners.push(runner);
       }
     });
+
+    availableRunners = newAvailableRunners;
+    completedRunners = newCompletedRunners;
   }
 
   function startTimer() {
@@ -90,8 +93,7 @@
       updated: Date.now()
     }));
     
-    // Update the runner lists
-    updateAvailableRunners();
+    // The reactive statement will automatically update the runner lists
   }
 
   function formatTimerDisplay(milliseconds: number): string {
@@ -123,12 +125,7 @@
       time: timeString
     });
     
-    // Move runner from available to completed
-    availableRunners = availableRunners.filter(r => r.id !== runner.id);
-    completedRunners.push({
-      ...runner,
-      recordedTime: timeString
-    });
+    // The reactive statement will automatically update the runner lists
   }
 
   function getTeamById(teamId: string): Team | undefined {
