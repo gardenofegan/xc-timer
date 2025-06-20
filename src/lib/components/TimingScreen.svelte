@@ -1,166 +1,289 @@
 <script lang="ts">
   import { session, checkpoints } from '../stores/session';
-  import { isValidTimeFormat } from '../utils/time';
-  import type { Team } from '../types';
+  import type { Team, Runner } from '../types';
+  import { onDestroy } from 'svelte';
   
-  let selectedRunner = '';
+  // Timer state
+  let isTimerRunning = false;
+  let startTime = 0;
+  let currentTime = 0;
+  let timerInterval: number | null = null;
+  
+  // Selection state
+  let selectedTeamIds: string[] = [];
   let selectedCheckpoint = '';
-  let timeInput = '';
+  
+  // Runner state for timing
+  let availableRunners: Runner[] = [];
+  let completedRunners: Array<Runner & { recordedTime: string }> = [];
 
-  $: if ($session.runners.length === 1 && !selectedRunner) {
-    selectedRunner = $session.runners[0].id;
+  $: {
+    // Update available runners when teams or checkpoint selection changes
+    if (selectedTeamIds.length > 0 && selectedCheckpoint) {
+      updateAvailableRunners();
+    } else {
+      availableRunners = [];
+      completedRunners = [];
+    }
   }
 
-  function addTime() {
-    if (!selectedRunner || !selectedCheckpoint || !timeInput) return;
-    if (!isValidTimeFormat(timeInput)) return;
-
-    session.addTime({
-      runnerId: selectedRunner,
-      checkpoint: selectedCheckpoint,
-      time: timeInput
+  function updateAvailableRunners() {
+    const teamRunners = $session.runners.filter(runner => 
+      selectedTeamIds.includes(runner.teamId)
+    );
+    
+    // Split runners into available (no time for this checkpoint) and completed (has time)
+    availableRunners = [];
+    completedRunners = [];
+    
+    teamRunners.forEach(runner => {
+      const existingTime = $session.times.find(t => 
+        t.runnerId === runner.id && t.checkpoint === selectedCheckpoint
+      );
+      
+      if (existingTime) {
+        completedRunners.push({
+          ...runner,
+          recordedTime: existingTime.time
+        });
+      } else {
+        availableRunners.push(runner);
+      }
     });
-
-    timeInput = '';
   }
 
-  function getRunnerTimes(runnerId: string) {
-    return $session.times.filter(t => t.runnerId === runnerId);
+  function startTimer() {
+    if (selectedTeamIds.length === 0 || !selectedCheckpoint) return;
+    
+    startTime = Date.now();
+    currentTime = 0;
+    isTimerRunning = true;
+    
+    timerInterval = setInterval(() => {
+      currentTime = Date.now() - startTime;
+    }, 10); // Update every 10ms for smooth display
   }
 
-  function getTimeForCheckpoint(runnerId: string, checkpoint: string) {
-    const time = $session.times.find(t => t.runnerId === runnerId && t.checkpoint === checkpoint);
-    return time?.time || '';
+  function stopTimer() {
+    isTimerRunning = false;
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function resetTimer() {
+    stopTimer();
+    startTime = 0;
+    currentTime = 0;
+    // Reset runner lists
+    updateAvailableRunners();
+  }
+
+  function formatTimerDisplay(milliseconds: number): string {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const ms = Math.floor((milliseconds % 1000) / 10);
+    
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+  }
+
+  function formatTimeForStorage(milliseconds: number): string {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  function recordRunnerTime(runner: Runner) {
+    if (!isTimerRunning) return;
+    
+    const timeString = formatTimeForStorage(currentTime);
+    
+    // Add time to session
+    session.addTime({
+      runnerId: runner.id,
+      checkpoint: selectedCheckpoint,
+      time: timeString
+    });
+    
+    // Move runner from available to completed
+    availableRunners = availableRunners.filter(r => r.id !== runner.id);
+    completedRunners.push({
+      ...runner,
+      recordedTime: timeString
+    });
   }
 
   function getTeamById(teamId: string): Team | undefined {
     return $session.teams.find(t => t.id === teamId);
   }
 
-  function getRunnersByTeam() {
-    const teams = new Map();
-    
-    $session.runners.forEach(runner => {
-      const team = getTeamById(runner.teamId);
-      const teamName = team?.name || 'No Team';
-      const teamColor = team?.color || '#6b7280';
-      
-      if (!teams.has(teamName)) {
-        teams.set(teamName, { runners: [], color: teamColor });
-      }
-      teams.get(teamName).runners.push(runner);
-    });
-    
-    return Array.from(teams.entries()).map(([name, data]) => ({
-      name,
-      color: data.color,
-      runners: data.runners
-    }));
+  function getSelectedTeamNames(): string {
+    return selectedTeamIds
+      .map(id => getTeamById(id)?.name)
+      .filter(Boolean)
+      .join(', ');
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter') {
-      addTime();
+  function toggleTeamSelection(teamId: string) {
+    if (selectedTeamIds.includes(teamId)) {
+      selectedTeamIds = selectedTeamIds.filter(id => id !== teamId);
+    } else {
+      selectedTeamIds = [...selectedTeamIds, teamId];
     }
   }
+
+  // Cleanup on destroy
+  onDestroy(() => {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+    }
+  });
 </script>
 
 <div class="timing-container">
   <div class="header">
-    <h2>Race Timing</h2>
-    <div class="stats">
-      {$session.runners.length} runners • {$checkpoints.length} checkpoints
+    <h2>Race Timer</h2>
+    <div class="timer-display" class:running={isTimerRunning}>
+      {formatTimerDisplay(currentTime)}
     </div>
   </div>
 
-  {#if $session.runners.length === 0}
-    <div class="empty-state">
-      <p>No runners added yet!</p>
-      <p>Go to Setup to add runners first.</p>
+  <div class="controls-section">
+    <div class="timer-controls">
+      {#if !isTimerRunning}
+        <button 
+          class="timer-btn start-btn" 
+          on:click={startTimer}
+          disabled={selectedTeamIds.length === 0 || !selectedCheckpoint}
+        >
+          ▶️ Start Timer
+        </button>
+      {:else}
+        <button class="timer-btn stop-btn" on:click={stopTimer}>
+          ⏸️ Stop Timer
+        </button>
+      {/if}
+      
+      <button class="timer-btn reset-btn" on:click={resetTimer}>
+        🔄 Reset
+      </button>
     </div>
-  {:else}
-    <div class="quick-time-entry">
-      <h3>Quick Time Entry</h3>
-      <div class="entry-form">
-        <select bind:value={selectedRunner} class="runner-select">
-          <option value="">Select Runner</option>
-          {#each $session.runners as runner}
-            {@const team = getTeamById(runner.teamId)}
-            <option value={runner.id}>
-              {runner.name} ({runner.grade}) - {team?.name || 'No Team'}
-            </option>
-          {/each}
-        </select>
 
-        <select bind:value={selectedCheckpoint} class="checkpoint-select">
+    <div class="selection-controls">
+      <div class="team-selection">
+        <label>Select Team(s):</label>
+        <div class="team-checkboxes">
+          {#each $session.teams as team (team.id)}
+            <label class="team-checkbox">
+              <input 
+                type="checkbox" 
+                value={team.id}
+                checked={selectedTeamIds.includes(team.id)}
+                on:change={() => toggleTeamSelection(team.id)}
+                disabled={isTimerRunning}
+              />
+              <span class="checkbox-label" style="color: {team.color}">
+                {team.name}
+              </span>
+            </label>
+          {/each}
+        </div>
+        {#if selectedTeamIds.length === 0}
+          <div class="selection-hint">Select at least one team</div>
+        {/if}
+      </div>
+
+      <div class="checkpoint-selection">
+        <label for="checkpoint-select">Checkpoint:</label>
+        <select 
+          id="checkpoint-select" 
+          bind:value={selectedCheckpoint}
+          disabled={isTimerRunning}
+        >
           <option value="">Select Checkpoint</option>
           {#each $checkpoints as checkpoint}
             <option value={checkpoint}>{checkpoint}</option>
           {/each}
         </select>
+        {#if !selectedCheckpoint}
+          <div class="selection-hint">Select a checkpoint</div>
+        {/if}
+      </div>
+    </div>
+  </div>
 
-        <input 
-          type="text" 
-          bind:value={timeInput}
-          placeholder="MM:SS"
-          pattern="[0-9]{1,2}:[0-9]{2}"
-          class="time-input"
-          on:keydown={handleKeydown}
-        />
-
-        <button 
-          on:click={addTime}
-          disabled={!selectedRunner || !selectedCheckpoint || !timeInput || !isValidTimeFormat(timeInput)}
-          class="add-time-btn"
-        >
-          Add Time
-        </button>
+  {#if selectedTeamIds.length > 0 && selectedCheckpoint}
+    <div class="timing-info">
+      <div class="timing-summary">
+        <strong>Timing:</strong> {getSelectedTeamNames()} at {selectedCheckpoint}
+        <span class="runner-count">
+          ({availableRunners.length} pending, {completedRunners.length} completed)
+        </span>
       </div>
     </div>
 
-    <div class="teams-container">
-      {#each getRunnersByTeam() as teamGroup}
-        <div class="team-section">
-          <h3 class="team-header" style="color: {teamGroup.color}">
-            {teamGroup.name} ({teamGroup.runners.length})
-          </h3>
-          
-          <div class="runners-grid">
-            {#each teamGroup.runners as runner (runner.id)}
-              <div class="runner-card" style="border-left: 4px solid {teamGroup.color}">
-                <div class="runner-header">
-                  <h4>{runner.name}</h4>
-                  <div class="runner-meta">
-                    {runner.grade}
-                  </div>
-                </div>
-
-                <div class="checkpoints">
-                  {#each $checkpoints as checkpoint}
-                    {@const time = getTimeForCheckpoint(runner.id, checkpoint)}
-                    <div class="checkpoint">
-                      <div class="checkpoint-label">{checkpoint}</div>
-                      <div class="checkpoint-time" class:has-time={time}>
-                        {time || '--:--'}
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-
-                {#each [getRunnerTimes(runner.id)] as runnerTimes}
-                  {@const completedCheckpoints = runnerTimes.length}
-                  <div class="progress-bar">
-                    <div 
-                      class="progress-fill" 
-                      style="width: {(completedCheckpoints / $checkpoints.length) * 100}%; background-color: {teamGroup.color}"
-                    ></div>
-                  </div>
-                {/each}
+    {#if isTimerRunning && availableRunners.length > 0}
+      <div class="runners-timing-list">
+        <h3>Tap to Record Time</h3>
+        <div class="available-runners">
+          {#each availableRunners as runner (runner.id)}
+            {@const team = getTeamById(runner.teamId)}
+            <div class="runner-timing-row" style="border-left: 4px solid {team?.color || '#6b7280'}">
+              <div class="runner-info">
+                <div class="runner-name">{runner.name}</div>
+                <div class="runner-details">{runner.grade} • {team?.name}</div>
               </div>
-            {/each}
-          </div>
+              <button 
+                class="time-btn"
+                on:click={() => recordRunnerTime(runner)}
+              >
+                {formatTimerDisplay(currentTime)}
+              </button>
+            </div>
+          {/each}
         </div>
-      {/each}
+      </div>
+    {/if}
+
+    {#if completedRunners.length > 0}
+      <div class="completed-runners">
+        <h3>Recorded Times</h3>
+        <div class="completed-list">
+          {#each completedRunners as runner (runner.id)}
+            {@const team = getTeamById(runner.teamId)}
+            <div class="completed-runner-row" style="border-left: 4px solid {team?.color || '#6b7280'}">
+              <div class="runner-info">
+                <div class="runner-name">{runner.name}</div>
+                <div class="runner-details">{runner.grade} • {team?.name}</div>
+              </div>
+              <div class="recorded-time">
+                {runner.recordedTime}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    {#if !isTimerRunning && availableRunners.length === 0 && completedRunners.length === 0}
+      <div class="no-runners-message">
+        All runners from selected team(s) already have times recorded for {selectedCheckpoint}.
+      </div>
+    {/if}
+  {:else}
+    <div class="setup-message">
+      <h3>Setup Required</h3>
+      <p>Please select team(s) and a checkpoint to begin timing.</p>
+      
+      {#if $session.teams.length === 0}
+        <p class="warning">⚠️ No teams created yet. Go to Setup to create teams and add runners.</p>
+      {:else if $session.runners.length === 0}
+        <p class="warning">⚠️ No runners added yet. Go to Setup to add runners to your teams.</p>
+      {/if}
     </div>
   {/if}
 </div>
@@ -168,7 +291,7 @@
 <style>
   .timing-container {
     padding: 1rem;
-    max-width: 1000px;
+    max-width: 800px;
     margin: 0 auto;
   }
 
@@ -186,39 +309,138 @@
     color: var(--text-primary);
   }
 
-  .stats {
-    font-size: 0.875rem;
+  .timer-display {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 2.5rem;
+    font-weight: 700;
     color: var(--text-secondary);
-  }
-
-  .empty-state {
+    background: var(--bg-secondary);
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    border: 2px solid var(--border);
+    min-width: 200px;
     text-align: center;
-    padding: 3rem 1rem;
-    color: var(--text-secondary);
   }
 
-  .quick-time-entry {
+  .timer-display.running {
+    color: var(--primary);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-alpha);
+  }
+
+  .controls-section {
     background: var(--bg-secondary);
     padding: 1.5rem;
     border-radius: 0.75rem;
     margin-bottom: 2rem;
   }
 
-  .quick-time-entry h3 {
-    margin: 0 0 1rem 0;
+  .timer-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    justify-content: center;
+  }
+
+  .timer-btn {
+    padding: 1rem 2rem;
+    border: none;
+    border-radius: 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 140px;
+  }
+
+  .start-btn {
+    background: var(--success);
+    color: white;
+  }
+
+  .start-btn:hover:not(:disabled) {
+    background: var(--success-hover);
+    transform: translateY(-2px);
+  }
+
+  .start-btn:disabled {
+    background: var(--text-disabled);
+    cursor: not-allowed;
+  }
+
+  .stop-btn {
+    background: var(--warning);
+    color: white;
+  }
+
+  .stop-btn:hover {
+    background: var(--warning-hover);
+    transform: translateY(-2px);
+  }
+
+  .reset-btn {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .reset-btn:hover {
+    background: var(--bg-hover);
+    transform: translateY(-2px);
+  }
+
+  .selection-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  .team-selection label,
+  .checkpoint-selection label {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
     color: var(--text-primary);
   }
 
-  .entry-form {
+  .team-checkboxes {
     display: grid;
-    grid-template-columns: 2fr 1fr 120px auto;
-    gap: 0.75rem;
-    align-items: end;
+    gap: 0.5rem;
   }
 
-  .runner-select,
-  .checkpoint-select,
-  .time-input {
+  .team-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease;
+  }
+
+  .team-checkbox:hover {
+    background: var(--bg-hover);
+  }
+
+  .team-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+
+  .checkbox-label {
+    font-weight: 500;
+  }
+
+  .selection-hint {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    font-style: italic;
+  }
+
+  #checkpoint-select {
+    width: 100%;
     padding: 0.75rem;
     border: 1px solid var(--border);
     border-radius: 0.5rem;
@@ -227,130 +449,171 @@
     color: var(--text-primary);
   }
 
-  .runner-select:focus,
-  .checkpoint-select:focus,
-  .time-input:focus {
+  #checkpoint-select:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-alpha);
   }
 
-  .add-time-btn {
-    padding: 0.75rem 1.5rem;
-    background: var(--primary);
-    color: white;
-    border: none;
+  .timing-info {
+    background: var(--primary-alpha);
+    padding: 1rem;
     border-radius: 0.5rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
+    margin-bottom: 2rem;
+    border: 1px solid var(--primary);
   }
 
-  .add-time-btn:hover:not(:disabled) {
-    background: var(--primary-hover);
-  }
-
-  .add-time-btn:disabled {
-    background: var(--text-disabled);
-    cursor: not-allowed;
-  }
-
-  .teams-container {
-    display: grid;
-    gap: 2rem;
-  }
-
-  .team-section {
-    background: var(--bg-secondary);
-    padding: 1.5rem;
-    border-radius: 0.75rem;
-    border: 1px solid var(--border);
-  }
-
-  .team-header {
-    margin: 0 0 1.5rem 0;
-    font-size: 1.25rem;
-    font-weight: 700;
-  }
-
-  .runners-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1rem;
-  }
-
-  .runner-card {
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    padding: 1.5rem;
-  }
-
-  .runner-header {
-    margin-bottom: 1rem;
-  }
-
-  .runner-header h4 {
-    margin: 0 0 0.25rem 0;
+  .timing-summary {
     color: var(--text-primary);
-    font-size: 1.125rem;
+    font-size: 1rem;
   }
 
-  .runner-meta {
+  .runner-count {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+
+  .runners-timing-list {
+    margin-bottom: 2rem;
+  }
+
+  .runners-timing-list h3 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+    text-align: center;
+  }
+
+  .available-runners {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .runner-timing-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    transition: all 0.2s ease;
+  }
+
+  .runner-timing-row:hover {
+    background: var(--bg-hover);
+    transform: translateY(-1px);
+  }
+
+  .runner-info {
+    flex: 1;
+  }
+
+  .runner-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+  }
+
+  .runner-details {
     font-size: 0.875rem;
     color: var(--text-secondary);
   }
 
-  .checkpoints {
-    display: grid;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .checkpoint {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem;
-    background: var(--bg-secondary);
+  .time-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
     border-radius: 0.5rem;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 1.125rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 120px;
   }
 
-  .checkpoint-label {
-    font-weight: 500;
+  .time-btn:hover {
+    background: var(--primary-hover);
+    transform: scale(1.05);
+  }
+
+  .completed-runners {
+    background: var(--bg-secondary);
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+  }
+
+  .completed-runners h3 {
+    margin: 0 0 1rem 0;
     color: var(--text-primary);
   }
 
-  .checkpoint-time {
+  .completed-list {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .completed-runner-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: var(--bg-primary);
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+  }
+
+  .recorded-time {
     font-family: 'Monaco', 'Menlo', monospace;
-    font-weight: 600;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--success);
+    background: var(--success-bg);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+  }
+
+  .setup-message, .no-runners-message {
+    text-align: center;
+    padding: 3rem 1rem;
     color: var(--text-secondary);
   }
 
-  .checkpoint-time.has-time {
-    color: var(--primary);
+  .setup-message h3 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
   }
 
-  .progress-bar {
-    height: 4px;
-    background: var(--bg-secondary);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    transition: width 0.3s ease;
+  .warning {
+    color: var(--warning);
+    font-weight: 500;
   }
 
   @media (max-width: 768px) {
-    .entry-form {
-      grid-template-columns: 1fr;
+    .header {
+      flex-direction: column;
+      text-align: center;
     }
 
-    .runners-grid {
+    .timer-display {
+      font-size: 2rem;
+      min-width: auto;
+      width: 100%;
+    }
+
+    .timer-controls {
+      flex-direction: column;
+    }
+
+    .selection-controls {
       grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .timer-btn {
+      min-width: auto;
     }
   }
 </style>
