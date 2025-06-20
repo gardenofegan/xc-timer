@@ -205,38 +205,62 @@
 
   <div class="share-mode-section">
     <h3>What would you like to share?</h3>
-    <div class="mode-options">
-      <label class="mode-option">
-        <input type="radio" bind:group={shareMode} value="all" />
-        <div class="option-content">
-          <div class="option-title">📦 Complete Session</div>
-          <div class="option-description">All teams, runners, and timing data</div>
+    <div class="mode-button-group" role="radiogroup" aria-label="Share mode selection">
+      <button
+        type="button"
+        class="mode-btn"
+        class:active={shareMode === 'all'}
+        on:click={() => shareMode = 'all'}
+        role="radio"
+        aria-checked={shareMode === 'all'}
+      >
+        <div class="mode-content">
+          <div class="mode-title">📦 Complete Session</div>
+          <div class="mode-description">All teams, runners, and timing data</div>
         </div>
-      </label>
+      </button>
 
-      <label class="mode-option">
-        <input type="radio" bind:group={shareMode} value="team" />
-        <div class="option-content">
-          <div class="option-title">👥 Team Data</div>
-          <div class="option-description">All runners and times for a specific team</div>
+      <button
+        type="button"
+        class="mode-btn"
+        class:active={shareMode === 'team'}
+        on:click={() => shareMode = 'team'}
+        role="radio"
+        aria-checked={shareMode === 'team'}
+      >
+        <div class="mode-content">
+          <div class="mode-title">👥 Team Data</div>
+          <div class="mode-description">All runners and times for a specific team</div>
         </div>
-      </label>
+      </button>
 
-      <label class="mode-option">
-        <input type="radio" bind:group={shareMode} value="checkpoint" />
-        <div class="option-content">
-          <div class="option-title">📍 Single Checkpoint</div>
-          <div class="option-description">Times for one team at one checkpoint in a race</div>
+      <button
+        type="button"
+        class="mode-btn"
+        class:active={shareMode === 'checkpoint'}
+        on:click={() => shareMode = 'checkpoint'}
+        role="radio"
+        aria-checked={shareMode === 'checkpoint'}
+      >
+        <div class="mode-content">
+          <div class="mode-title">📍 Single Checkpoint</div>
+          <div class="mode-description">Times for one team at one checkpoint in a race</div>
         </div>
-      </label>
+      </button>
 
-      <label class="mode-option">
-        <input type="radio" bind:group={shareMode} value="race" />
-        <div class="option-content">
-          <div class="option-title">🏁 Full Race</div>
-          <div class="option-description">All checkpoints for one team in a specific race</div>
+      <button
+        type="button"
+        class="mode-btn"
+        class:active={shareMode === 'race'}
+        on:click={() => shareMode = 'race'}
+        role="radio"
+        aria-checked={shareMode === 'race'}
+      >
+        <div class="mode-content">
+          <div class="mode-title">🏁 Full Race</div>
+          <div class="mode-description">All checkpoints for one team in a specific race</div>
         </div>
-      </label>
+      </button>
     </div>
   </div>
 
@@ -381,52 +405,63 @@
     color: var(--text-primary);
   }
 
-  .mode-options {
-    display: grid;
-    gap: 0.75rem;
+  .mode-button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    overflow: hidden;
   }
 
-  .mode-option {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+  .mode-btn {
+    width: 100%;
     padding: 1rem;
+    border: none;
+    border-bottom: 1px solid var(--border);
     background: var(--bg-primary);
-    border: 2px solid var(--border);
-    border-radius: 0.5rem;
+    color: var(--text-primary);
     cursor: pointer;
     transition: all 0.2s ease;
+    text-align: left;
+    position: relative;
   }
 
-  .mode-option:hover {
-    border-color: var(--primary);
+  .mode-btn:last-child {
+    border-bottom: none;
+  }
+
+  .mode-btn:hover:not(.active) {
     background: var(--bg-hover);
   }
 
-  .mode-option:has(input:checked) {
-    border-color: var(--primary);
-    background: var(--primary-alpha);
+  .mode-btn.active {
+    background: var(--primary);
+    color: white;
   }
 
-  .mode-option input[type="radio"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
+  .mode-btn.active::after {
+    content: '●';
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.25rem;
+    font-weight: bold;
   }
 
-  .option-content {
-    flex: 1;
+  .mode-content {
+    width: 100%;
   }
 
-  .option-title {
+  .mode-title {
     font-weight: 600;
-    color: var(--text-primary);
     margin-bottom: 0.25rem;
   }
 
-  .option-description {
+  .mode-description {
     font-size: 0.875rem;
-    color: var(--text-secondary);
+    opacity: 0.9;
   }
 
   .selection-section {
@@ -607,12 +642,6 @@
   @media (max-width: 480px) {
     .selection-grid {
       grid-template-columns: 1fr;
-    }
-    
-    .mode-option {
-      flex-direction: column;
-      text-align: center;
-      gap: 0.5rem;
     }
   }
 </style>
