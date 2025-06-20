@@ -72,11 +72,25 @@
     }
   }
 
-  function resetTimer() {
-    stopTimer();
-    startTime = 0;
-    currentTime = 0;
-    // Reset runner lists
+  function resetCheckpointTimes() {
+    // Remove times for selected teams and checkpoint
+    session.update(currentSession => ({
+      ...currentSession,
+      times: currentSession.times.filter(time => {
+        // Keep times that don't match the current selection
+        if (time.checkpoint !== selectedCheckpoint) return true;
+        
+        // Check if this time belongs to a runner from selected teams
+        const runner = currentSession.runners.find(r => r.id === time.runnerId);
+        if (!runner || !selectedTeamIds.includes(runner.teamId)) return true;
+        
+        // Remove this time (it matches selected teams and checkpoint)
+        return false;
+      }),
+      updated: Date.now()
+    }));
+    
+    // Update the runner lists
     updateAvailableRunners();
   }
 
@@ -167,10 +181,6 @@
           ⏸️ Stop Timer
         </button>
       {/if}
-      
-      <button class="timer-btn reset-btn" on:click={resetTimer}>
-        🔄 Reset
-      </button>
     </div>
 
     <div class="selection-controls">
@@ -251,7 +261,16 @@
 
     {#if completedRunners.length > 0}
       <div class="completed-runners">
-        <h3>Recorded Times</h3>
+        <div class="completed-header">
+          <h3>Recorded Times</h3>
+          <button 
+            class="reset-checkpoint-btn"
+            on:click={resetCheckpointTimes}
+            title="Clear all times for {getSelectedTeamNames()} at {selectedCheckpoint}"
+          >
+            🗑️ Reset Times
+          </button>
+        </div>
         <div class="completed-list">
           {#each completedRunners as runner (runner.id)}
             {@const team = getTeamById(runner.teamId)}
@@ -375,17 +394,6 @@
 
   .stop-btn:hover {
     background: var(--warning-hover);
-    transform: translateY(-2px);
-  }
-
-  .reset-btn {
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-  }
-
-  .reset-btn:hover {
-    background: var(--bg-hover);
     transform: translateY(-2px);
   }
 
@@ -545,9 +553,33 @@
     border: 1px solid var(--border);
   }
 
-  .completed-runners h3 {
-    margin: 0 0 1rem 0;
+  .completed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .completed-header h3 {
+    margin: 0;
     color: var(--text-primary);
+  }
+
+  .reset-checkpoint-btn {
+    background: var(--danger);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .reset-checkpoint-btn:hover {
+    background: var(--danger-hover);
+    transform: translateY(-1px);
   }
 
   .completed-list {
@@ -614,6 +646,12 @@
 
     .timer-btn {
       min-width: auto;
+    }
+
+    .completed-header {
+      flex-direction: column;
+      gap: 1rem;
+      align-items: stretch;
     }
   }
 </style>

@@ -110,6 +110,15 @@ function createSessionStore() {
         updated: Date.now()
       }));
     },
+    removeTime: (runnerId: string, checkpoint: string) => {
+      update(session => ({
+        ...session,
+        times: session.times.filter(t => 
+          !(t.runnerId === runnerId && t.checkpoint === checkpoint)
+        ),
+        updated: Date.now()
+      }));
+    },
     setUnit: (unit: 'km' | 'miles') => {
       update(session => ({
         ...session,
