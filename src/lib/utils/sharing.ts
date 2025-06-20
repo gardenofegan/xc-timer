@@ -21,6 +21,7 @@ export async function shareData(session: TimingSession) {
   
   // Fallback: copy to clipboard
   try {
+    console.log('Copied to clipboard');
     await navigator.clipboard.writeText(JSON.stringify(session, null, 2));
     return true;
   } catch (err) {
