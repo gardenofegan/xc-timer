@@ -1,0 +1,94 @@
+<!-- SVG Template for creating PWA icons -->
+<!-- This combines a timer and runners icon for the Cross Country Timer app -->
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#22c55e" stroke="#16a34a" stroke-width="8"/>
+  
+  <!-- Timer circle (main element) -->
+  <circle cx="256" cy="200" r="120" fill="white" stroke="#374151" stroke-width="6"/>
+  
+  <!-- Timer face markings -->
+  <g stroke="#374151" stroke-width="3" fill="none">
+    <!-- 12 o'clock -->
+    <line x1="256" y1="90" x2="256" y2="110"/>
+    <!-- 3 o'clock -->
+    <line x1="366" y1="200" x2="346" y2="200"/>
+    <!-- 6 o'clock -->
+    <line x1="256" y1="310" x2="256" y2="290"/>
+    <!-- 9 o'clock -->
+    <line x1="146" y1="200" x2="166" y2="200"/>
+  </g>
+  
+  <!-- Timer hands -->
+  <g stroke="#374151" stroke-width="4" stroke-linecap="round">
+    <!-- Hour hand pointing to 2 -->
+    <line x1="256" y1="200" x2="290" y2="160"/>
+    <!-- Minute hand pointing to 12 -->
+    <line x1="256" y1="200" x2="256" y2="130"/>
+  </g>
+  
+  <!-- Center dot -->
+  <circle cx="256" cy="200" r="8" fill="#374151"/>
+  
+  <!-- Runners silhouettes at bottom -->
+  <g fill="#ffffff" opacity="0.9">
+    <!-- Runner 1 -->
+    <g transform="translate(180, 350)">
+      <!-- Head -->
+      <circle cx="0" cy="-10" r="8"/>
+      <!-- Body -->
+      <rect x="-4" y="-2" width="8" height="20" rx="2"/>
+      <!-- Arms -->
+      <rect x="-12" y="2" width="8" height="3" rx="1" transform="rotate(-20)"/>
+      <rect x="4" y="2" width="8" height="3" rx="1" transform="rotate(20)"/>
+      <!-- Legs -->
+      <rect x="-6" y="18" width="4" height="15" rx="2" transform="rotate(-10)"/>
+      <rect x="2" y="18" width="4" height="15" rx="2" transform="rotate(10)"/>
+    </g>
+    
+    <!-- Runner 2 -->
+    <g transform="translate(220, 355)">
+      <!-- Head -->
+      <circle cx="0" cy="-10" r="8"/>
+      <!-- Body -->
+      <rect x="-4" y="-2" width="8" height="20" rx="2"/>
+      <!-- Arms -->
+      <rect x="-12" y="2" width="8" height="3" rx="1" transform="rotate(-15)"/>
+      <rect x="4" y="2" width="8" height="3" rx="1" transform="rotate(15)"/>
+      <!-- Legs -->
+      <rect x="-6" y="18" width="4" height="15" rx="2" transform="rotate(-15)"/>
+      <rect x="2" y="18" width="4" height="15" rx="2" transform="rotate(15)"/>
+    </g>
+    
+    <!-- Runner 3 -->
+    <g transform="translate(290, 350)">
+      <!-- Head -->
+      <circle cx="0" cy="-10" r="8"/>
+      <!-- Body -->
+      <rect x="-4" y="-2" width="8" height="20" rx="2"/>
+      <!-- Arms -->
+      <rect x="-12" y="2" width="8" height="3" rx="1" transform="rotate(-25)"/>
+      <rect x="4" y="2" width="8" height="3" rx="1" transform="rotate(25)"/>
+      <!-- Legs -->
+      <rect x="-6" y="18" width="4" height="15" rx="2" transform="rotate(-5)"/>
+      <rect x="2" y="18" width="4" height="15" rx="2" transform="rotate(5)"/>
+    </g>
+    
+    <!-- Runner 4 -->
+    <g transform="translate(330, 355)">
+      <!-- Head -->
+      <circle cx="0" cy="-10" r="8"/>
+      <!-- Body -->
+      <rect x="-4" y="-2" width="8" height="20" rx="2"/>
+      <!-- Arms -->
+      <rect x="-12" y="2" width="8" height="3" rx="1" transform="rotate(-30)"/>
+      <rect x="4" y="2" width="8" height="3" rx="1" transform="rotate(30)"/>
+      <!-- Legs -->
+      <rect x="-6" y="18" width="4" height="15" rx="2" transform="rotate(-20)"/>
+      <rect x="2" y="18" width="4" height="15" rx="2" transform="rotate(20)"/>
+    </g>
+  </g>
+  
+  <!-- Stopwatch button -->
+  <rect x="246" y="80" width="20" height="8" rx="4" fill="#374151"/>
+</svg>
