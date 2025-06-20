@@ -11,6 +11,10 @@
   let teamColor = '#22c55e';
   let showTeamForm = false;
 
+  // Confirmation dialog state
+  let showRemoveConfirmation = false;
+  let runnerToRemove: { id: string; name: string; teamName: string } | null = null;
+
   const teamColors = [
     '#22c55e', '#3b82f6', '#f97316', '#ef4444', 
     '#8b5cf6', '#06b6d4', '#f59e0b', '#10b981'
@@ -51,8 +55,30 @@
     grade = 'Freshman';
   }
 
-  function removeRunner(runnerId: string) {
-    session.removeRunner(runnerId);
+  function confirmRemoveRunner(runnerId: string) {
+    const runner = $session.runners.find(r => r.id === runnerId);
+    const team = runner ? getTeamById(runner.teamId) : null;
+    
+    if (runner && team) {
+      runnerToRemove = {
+        id: runner.id,
+        name: runner.name,
+        teamName: team.name
+      };
+      showRemoveConfirmation = true;
+    }
+  }
+
+  function executeRemoveRunner() {
+    if (runnerToRemove) {
+      session.removeRunner(runnerToRemove.id);
+      cancelRemoveRunner();
+    }
+  }
+
+  function cancelRemoveRunner() {
+    runnerToRemove = null;
+    showRemoveConfirmation = false;
   }
 
   function getTeamById(teamId: string): Team | undefined {
@@ -71,8 +97,14 @@
         addRunner();
       }
     }
+    
+    if (event.key === 'Escape' && showRemoveConfirmation) {
+      cancelRemoveRunner();
+    }
   }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div class="setup-container">
   <div class="header">
@@ -249,7 +281,7 @@
                 </div>
                 <button 
                   class="remove-btn"
-                  on:click={() => removeRunner(runner.id)}
+                  on:click={() => confirmRemoveRunner(runner.id)}
                   title="Remove runner"
                 >
                   ✕
@@ -268,6 +300,31 @@
     {/if}
   </div>
 </div>
+
+<!-- Confirmation Dialog -->
+{#if showRemoveConfirmation && runnerToRemove}
+  <div class="modal-overlay" on:click={cancelRemoveRunner}>
+    <div class="confirmation-dialog" on:click|stopPropagation>
+      <div class="dialog-header">
+        <h3>Remove Runner</h3>
+      </div>
+      
+      <div class="dialog-content">
+        <p>Are you sure you'd like to remove <strong>{runnerToRemove.name}</strong> from <strong>{runnerToRemove.teamName}</strong>?</p>
+        <p class="warning-text">This will also remove all recorded times for this runner.</p>
+      </div>
+      
+      <div class="dialog-actions">
+        <button class="dialog-btn cancel-btn" on:click={cancelRemoveRunner}>
+          Cancel
+        </button>
+        <button class="dialog-btn confirm-btn" on:click={executeRemoveRunner}>
+          Remove Runner
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .setup-container {
@@ -567,6 +624,92 @@
     font-style: italic;
   }
 
+  /* Modal and Confirmation Dialog Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .confirmation-dialog {
+    background: var(--bg-primary);
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    max-width: 400px;
+    width: 100%;
+    border: 1px solid var(--border);
+  }
+
+  .dialog-header {
+    padding: 1.5rem 1.5rem 0 1.5rem;
+  }
+
+  .dialog-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.25rem;
+  }
+
+  .dialog-content {
+    padding: 1rem 1.5rem;
+  }
+
+  .dialog-content p {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+
+  .warning-text {
+    color: var(--warning) !important;
+    font-size: 0.875rem;
+    font-style: italic;
+  }
+
+  .dialog-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    justify-content: flex-end;
+  }
+
+  .dialog-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .cancel-btn {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .cancel-btn:hover {
+    background: var(--bg-hover);
+  }
+
+  .confirm-btn {
+    background: var(--danger);
+    color: white;
+  }
+
+  .confirm-btn:hover {
+    background: var(--danger-hover);
+  }
+
   @media (max-width: 480px) {
     .header {
       flex-direction: column;
@@ -586,6 +729,14 @@
     .color-picker {
       flex-direction: column;
       align-items: flex-start;
+    }
+
+    .dialog-actions {
+      flex-direction: column;
+    }
+
+    .modal-overlay {
+      padding: 0.5rem;
     }
   }
 </style>
