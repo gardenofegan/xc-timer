@@ -10,6 +10,7 @@
   let importStatus = '';
   let hasCamera = false;
   let cameraCheckComplete = false;
+  let cameraError = '';
 
   // Import mode and preview
   let importMode: 'merge' | 'replace' | 'selective' = 'merge';
@@ -25,22 +26,63 @@
 
   async function checkCameraSupport() {
     try {
+      console.log('Checking camera support...');
+      
+      // First check if QrScanner has camera support
       const supported = await QrScanner.hasCamera();
-      hasCamera = supported;
+      console.log('QrScanner.hasCamera():', supported);
+      
+      if (supported) {
+        // Try to get user media to verify actual camera access
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'environment' } 
+          });
+          console.log('Camera stream obtained successfully');
+          
+          // Stop the stream immediately since we just wanted to test access
+          stream.getTracks().forEach(track => track.stop());
+          
+          hasCamera = true;
+          cameraError = '';
+        } catch (mediaError) {
+          console.error('getUserMedia error:', mediaError);
+          hasCamera = false;
+          
+          if (mediaError.name === 'NotAllowedError') {
+            cameraError = 'Camera access denied. Please allow camera permissions and refresh the page.';
+          } else if (mediaError.name === 'NotFoundError') {
+            cameraError = 'No camera found on this device.';
+          } else if (mediaError.name === 'NotSupportedError') {
+            cameraError = 'Camera not supported in this browser.';
+          } else {
+            cameraError = `Camera error: ${mediaError.message}`;
+          }
+        }
+      } else {
+        hasCamera = false;
+        cameraError = 'Camera not supported on this device or browser.';
+      }
+      
       cameraCheckComplete = true;
-      console.log('Camera support:', supported);
+      console.log('Camera check complete. hasCamera:', hasCamera, 'error:', cameraError);
     } catch (error) {
       console.error('Error checking camera support:', error);
       hasCamera = false;
+      cameraError = 'Failed to check camera support.';
       cameraCheckComplete = true;
     }
   }
 
   async function startScanning() {
-    if (!videoElement || isScanning || !hasCamera) return;
+    if (!videoElement || isScanning || !hasCamera) {
+      console.log('Cannot start scanning:', { videoElement: !!videoElement, isScanning, hasCamera });
+      return;
+    }
     
     try {
       importStatus = 'Starting camera...';
+      console.log('Creating QR scanner...');
       
       qrScanner = new QrScanner(
         videoElement,
@@ -52,31 +94,65 @@
         {
           highlightScanRegion: true,
           highlightCodeOutline: true,
+          preferredCamera: 'environment', // Use back camera if available
+          maxScansPerSecond: 5,
         }
       );
       
+      console.log('Starting QR scanner...');
       await qrScanner.start();
+      
       isScanning = true;
       importStatus = 'Scanning for QR code... Point camera at QR code';
+      console.log('QR scanner started successfully');
+      
     } catch (error) {
       console.error('Error starting QR scanner:', error);
-      importStatus = 'Failed to start camera. Please check camera permissions.';
-      setTimeout(() => importStatus = '', 5000);
+      
+      let errorMessage = 'Failed to start camera. ';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage += 'Camera access denied. Please allow camera permissions and try again.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage += 'No camera found on this device.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage += 'Camera is already in use by another application.';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage += 'Camera constraints could not be satisfied.';
+      } else {
+        errorMessage += `Error: ${error.message}`;
+      }
+      
+      importStatus = errorMessage;
+      isScanning = false;
+      
+      // Clear error after 10 seconds
+      setTimeout(() => {
+        if (importStatus === errorMessage) {
+          importStatus = '';
+        }
+      }, 10000);
     }
   }
 
   function stopScanning() {
+    console.log('Stopping QR scanner...');
     if (qrScanner) {
       qrScanner.destroy();
       qrScanner = null;
+      console.log('QR scanner destroyed');
     }
     isScanning = false;
-    importStatus = '';
+    if (!importStatus.includes('QR code detected') && !importStatus.includes('Data loaded')) {
+      importStatus = '';
+    }
   }
 
   function handleQRResult(data: string) {
     try {
+      console.log('Processing QR result, data length:', data.length);
       const sessionData = JSON.parse(data) as TimingSession;
+      console.log('QR data parsed successfully:', sessionData);
       processImportData(sessionData);
     } catch (error) {
       console.error('Error parsing QR code:', error);
@@ -344,11 +420,17 @@
         <p>Scan a QR code generated by another timer device</p>
         
         {#if !cameraCheckComplete}
-          <div class="camera-status">Checking camera availability...</div>
+          <div class="camera-status">
+            <div class="loading-spinner"></div>
+            Checking camera availability...
+          </div>
         {:else if !hasCamera}
           <div class="camera-status error">
-            📷 No camera detected or camera access denied.<br>
-            <small>QR scanning requires camera access on your device.</small>
+            📷 {cameraError}
+            <br><small>QR scanning requires camera access on your device.</small>
+            <button class="retry-btn" on:click={checkCameraSupport}>
+              🔄 Retry Camera Check
+            </button>
           </div>
         {:else if !isScanning}
           <button class="method-btn primary" on:click={startScanning}>
@@ -356,7 +438,7 @@
           </button>
         {:else}
           <div class="scanner-container">
-            <video bind:this={videoElement} class="scanner-video" autoplay playsinline></video>
+            <video bind:this={videoElement} class="scanner-video" autoplay playsinline muted></video>
             <button class="stop-btn" on:click={stopScanning}>
               ⏹️ Stop Scanning
             </button>
@@ -507,7 +589,7 @@
   {/if}
 
   {#if importStatus}
-    <div class="status-message" class:success={importStatus.includes('success')} class:error={importStatus.includes('Failed') || importStatus.includes('Invalid') || importStatus.includes('denied')}>
+    <div class="status-message" class:success={importStatus.includes('success')} class:error={importStatus.includes('Failed') || importStatus.includes('Invalid') || importStatus.includes('denied') || importStatus.includes('Error')}>
       {importStatus}
     </div>
   {/if}
@@ -578,12 +660,45 @@
     font-weight: 500;
     background: var(--bg-primary);
     border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
   }
 
   .camera-status.error {
     background: var(--danger-bg);
     color: var(--danger);
     border-color: var(--danger);
+  }
+
+  .loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top: 2px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .retry-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .retry-btn:hover {
+    background: var(--primary-hover);
   }
 
   .method-btn {
