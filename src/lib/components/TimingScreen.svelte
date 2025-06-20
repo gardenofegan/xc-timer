@@ -166,12 +166,10 @@
 <div class="timing-container">
   <div class="header">
     <h2>Race Timer</h2>
-    <div class="timer-display" class:running={isTimerRunning}>
-      {formatTimerDisplay(currentTime)}
-    </div>
   </div>
 
   <div class="controls-section">
+    <!-- Race Name Input -->
     <div class="race-input-section">
       <div class="form-group">
         <label for="race-name">Race Name</label>
@@ -189,39 +187,22 @@
       </div>
     </div>
 
-    <div class="timer-controls">
-      {#if !isTimerRunning}
-        <button 
-          class="timer-btn start-btn" 
-          on:click={startTimer}
-          disabled={selectedTeamIds.length === 0 || !selectedCheckpoint || !raceName.trim()}
-        >
-          ▶️ Start Timer
-        </button>
-      {:else}
-        <button class="timer-btn stop-btn" on:click={stopTimer}>
-          ⏸️ Stop Timer
-        </button>
-      {/if}
-    </div>
-
+    <!-- Team and Checkpoint Selection -->
     <div class="selection-controls">
       <div class="team-selection">
         <label>Select Team(s):</label>
-        <div class="team-checkboxes">
+        <div class="team-button-group" role="group" aria-label="Team selection">
           {#each $session.teams as team (team.id)}
-            <label class="team-checkbox">
-              <input 
-                type="checkbox" 
-                value={team.id}
-                checked={selectedTeamIds.includes(team.id)}
-                on:change={() => toggleTeamSelection(team.id)}
-                disabled={isTimerRunning}
-              />
-              <span class="checkbox-label" style="color: {team.color}">
-                {team.name}
-              </span>
-            </label>
+            <button
+              type="button"
+              class="team-btn"
+              class:active={selectedTeamIds.includes(team.id)}
+              style="--team-color: {team.color}"
+              disabled={isTimerRunning}
+              on:click={() => toggleTeamSelection(team.id)}
+            >
+              {team.name}
+            </button>
           {/each}
         </div>
         {#if selectedTeamIds.length === 0}
@@ -244,6 +225,29 @@
         {#if !selectedCheckpoint}
           <div class="selection-hint">Select a checkpoint</div>
         {/if}
+      </div>
+    </div>
+
+    <!-- Timer Controls and Display -->
+    <div class="timer-section">
+      <div class="timer-controls">
+        {#if !isTimerRunning}
+          <button 
+            class="timer-btn start-btn" 
+            on:click={startTimer}
+            disabled={selectedTeamIds.length === 0 || !selectedCheckpoint || !raceName.trim()}
+          >
+            ▶️ Start Timer
+          </button>
+        {:else}
+          <button class="timer-btn stop-btn" on:click={stopTimer}>
+            ⏸️ Stop Timer
+          </button>
+        {/if}
+      </div>
+
+      <div class="timer-display" class:running={isTimerRunning}>
+        {formatTimerDisplay(currentTime)}
       </div>
     </div>
   </div>
@@ -351,36 +355,13 @@
   }
 
   .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     margin-bottom: 2rem;
-    flex-wrap: wrap;
-    gap: 1rem;
   }
 
   .header h2 {
     margin: 0;
     color: var(--text-primary);
-  }
-
-  .timer-display {
-    font-family: 'Monaco', 'Menlo', monospace;
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
-    padding: 1rem 1.5rem;
-    border-radius: 0.75rem;
-    border: 2px solid var(--border);
-    min-width: 200px;
     text-align: center;
-  }
-
-  .timer-display.running {
-    color: var(--primary);
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-alpha);
   }
 
   .controls-section {
@@ -435,11 +416,106 @@
     font-style: italic;
   }
 
+  .selection-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .team-selection label,
+  .checkpoint-selection label {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .team-button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .team-btn {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    position: relative;
+  }
+
+  .team-btn:last-child {
+    border-bottom: none;
+  }
+
+  .team-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+
+  .team-btn:disabled {
+    background: var(--bg-hover);
+    color: var(--text-disabled);
+    cursor: not-allowed;
+  }
+
+  .team-btn.active {
+    background: var(--team-color);
+    color: white;
+    font-weight: 600;
+  }
+
+  .team-btn.active::before {
+    content: '✓';
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-weight: bold;
+  }
+
+  .selection-hint {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    font-style: italic;
+  }
+
+  #checkpoint-select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+  }
+
+  #checkpoint-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-alpha);
+  }
+
+  .timer-section {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2rem;
+    align-items: center;
+  }
+
   .timer-controls {
     display: flex;
-    gap: 1rem;
-    margin-bottom: 2rem;
-    justify-content: center;
   }
 
   .timer-btn {
@@ -478,68 +554,21 @@
     transform: translateY(-2px);
   }
 
-  .selection-controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-  }
-
-  .team-selection label,
-  .checkpoint-selection label {
-    display: block;
-    margin-bottom: 0.75rem;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .team-checkboxes {
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .team-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    transition: background-color 0.2s ease;
-  }
-
-  .team-checkbox:hover {
-    background: var(--bg-hover);
-  }
-
-  .team-checkbox input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-
-  .checkbox-label {
-    font-weight: 500;
-  }
-
-  .selection-hint {
-    font-size: 0.875rem;
+  .timer-display {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 2.5rem;
+    font-weight: 700;
     color: var(--text-secondary);
-    margin-top: 0.5rem;
-    font-style: italic;
-  }
-
-  #checkpoint-select {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    font-size: 1rem;
     background: var(--bg-primary);
-    color: var(--text-primary);
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    border: 2px solid var(--border);
+    text-align: center;
+    justify-self: end;
   }
 
-  #checkpoint-select:focus {
-    outline: none;
+  .timer-display.running {
+    color: var(--primary);
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-alpha);
   }
@@ -745,19 +774,14 @@
   }
 
   @media (max-width: 768px) {
-    .header {
-      flex-direction: column;
-      text-align: center;
+    .timer-section {
+      grid-template-columns: 1fr;
+      gap: 1rem;
     }
 
     .timer-display {
+      justify-self: stretch;
       font-size: 2rem;
-      min-width: auto;
-      width: 100%;
-    }
-
-    .timer-controls {
-      flex-direction: column;
     }
 
     .selection-controls {
@@ -767,6 +791,7 @@
 
     .timer-btn {
       min-width: auto;
+      width: 100%;
     }
 
     .completed-header {
