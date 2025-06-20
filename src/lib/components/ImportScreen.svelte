@@ -1,7 +1,7 @@
 <script lang="ts">
   import QrScanner from 'qr-scanner';
   import { session } from '../stores/session';
-  import type { TimingSession } from '../types';
+  import type { TimingSession, Team, Runner, TimeEntry } from '../types';
   
   let fileInput: HTMLInputElement;
   let videoElement: HTMLVideoElement;
@@ -9,6 +9,18 @@
   let isScanning = false;
   let importStatus = '';
   let hasCamera = false;
+
+  // Import mode and preview
+  let importMode: 'merge' | 'replace' | 'selective' = 'merge';
+  let previewData: TimingSession | null = null;
+  let showPreview = false;
+  
+  // Selective import options
+  let importTeams = true;
+  let importRunners = true;
+  let importTimes = true;
+  let selectedTeamIds: string[] = [];
+  let selectedRaces: string[] = [];
 
   async function checkCameraSupport() {
     try {
@@ -57,13 +69,12 @@
   function handleQRResult(data: string) {
     try {
       const sessionData = JSON.parse(data) as TimingSession;
-      mergeSessionData(sessionData);
-      importStatus = 'QR code imported successfully!';
+      processImportData(sessionData);
     } catch (error) {
       console.error('Error parsing QR code:', error);
       importStatus = 'Invalid QR code data';
+      setTimeout(() => importStatus = '', 3000);
     }
-    setTimeout(() => importStatus = '', 3000);
   }
 
   function handleFileUpload(event: Event) {
@@ -77,27 +88,182 @@
       try {
         const data = e.target?.result as string;
         const sessionData = JSON.parse(data) as TimingSession;
-        mergeSessionData(sessionData);
-        importStatus = 'File imported successfully!';
+        processImportData(sessionData);
       } catch (error) {
         console.error('Error parsing file:', error);
         importStatus = 'Invalid file format';
+        setTimeout(() => importStatus = '', 3000);
       }
-      setTimeout(() => importStatus = '', 3000);
     };
     reader.readAsText(file);
+  }
+
+  function handleManualImport(event: Event) {
+    const target = event.target as HTMLTextAreaElement;
+    const data = target.value.trim();
+    
+    if (!data) return;
+    
+    try {
+      const sessionData = JSON.parse(data);
+      processImportData(sessionData);
+      target.value = '';
+    } catch (error) {
+      importStatus = 'Invalid JSON format';
+      setTimeout(() => importStatus = '', 3000);
+    }
+  }
+
+  function processImportData(importedSession: TimingSession) {
+    previewData = importedSession;
+    showPreview = true;
+    
+    // Initialize selective import selections
+    selectedTeamIds = importedSession.teams?.map(t => t.id) || [];
+    selectedRaces = [...new Set(importedSession.times?.map(t => t.raceName).filter(Boolean))] || [];
+    
+    importStatus = 'Data loaded! Review and confirm import below.';
+    setTimeout(() => importStatus = '', 5000);
+  }
+
+  function executeImport() {
+    if (!previewData) return;
+
+    switch (importMode) {
+      case 'replace':
+        replaceSessionData(previewData);
+        break;
+      case 'selective':
+        selectiveImport(previewData);
+        break;
+      case 'merge':
+      default:
+        mergeSessionData(previewData);
+        break;
+    }
+
+    // Reset state
+    previewData = null;
+    showPreview = false;
+    importStatus = 'Import completed successfully!';
+    setTimeout(() => importStatus = '', 3000);
+  }
+
+  function replaceSessionData(importedSession: TimingSession) {
+    session.set({
+      ...importedSession,
+      id: $session.id, // Keep current session ID
+      updated: Date.now()
+    });
+  }
+
+  function selectiveImport(importedSession: TimingSession) {
+    let newTeams: Team[] = [];
+    let newRunners: Runner[] = [];
+    let newTimes: TimeEntry[] = [];
+
+    // Import selected teams
+    if (importTeams) {
+      newTeams = importedSession.teams?.filter(t => selectedTeamIds.includes(t.id)) || [];
+    }
+
+    // Import selected runners (only if their team is selected)
+    if (importRunners) {
+      newRunners = importedSession.runners?.filter(r => selectedTeamIds.includes(r.teamId)) || [];
+    }
+
+    // Import selected times (only for selected races and runners)
+    if (importTimes) {
+      const selectedRunnerIds = new Set(newRunners.map(r => r.id));
+      newTimes = importedSession.times?.filter(t => 
+        selectedRunnerIds.has(t.runnerId) && 
+        (!t.raceName || selectedRaces.includes(t.raceName))
+      ) || [];
+    }
+
+    // Merge with existing data
+    const existingTeamNames = new Set($session.teams.map(t => t.name.toLowerCase()));
+    const existingRunnerNames = new Set($session.runners.map(r => r.name.toLowerCase()));
+
+    // Handle team conflicts
+    const teamsToAdd = newTeams.filter(team => !existingTeamNames.has(team.name.toLowerCase()));
+    const teamIdMapping = new Map<string, string>();
+    
+    newTeams.forEach(importedTeam => {
+      const existingTeam = $session.teams.find(t => t.name.toLowerCase() === importedTeam.name.toLowerCase());
+      if (existingTeam) {
+        teamIdMapping.set(importedTeam.id, existingTeam.id);
+      } else {
+        const newId = crypto.randomUUID();
+        teamIdMapping.set(importedTeam.id, newId);
+        teamsToAdd.push({ ...importedTeam, id: newId });
+      }
+    });
+
+    // Handle runner conflicts and update team IDs
+    const runnersToAdd = newRunners.filter(runner => !existingRunnerNames.has(runner.name.toLowerCase()));
+    const runnerIdMapping = new Map<string, string>();
+    
+    newRunners.forEach(importedRunner => {
+      const existingRunner = $session.runners.find(r => r.name.toLowerCase() === importedRunner.name.toLowerCase());
+      if (existingRunner) {
+        runnerIdMapping.set(importedRunner.id, existingRunner.id);
+      } else {
+        const newId = crypto.randomUUID();
+        const newTeamId = teamIdMapping.get(importedRunner.teamId) || importedRunner.teamId;
+        runnerIdMapping.set(importedRunner.id, newId);
+        runnersToAdd.push({ ...importedRunner, id: newId, teamId: newTeamId });
+      }
+    });
+
+    // Update time entries with new runner IDs
+    const timesToAdd = newTimes.map(time => ({
+      ...time,
+      runnerId: runnerIdMapping.get(time.runnerId) || time.runnerId
+    }));
+
+    // Update session
+    session.update(currentSession => ({
+      ...currentSession,
+      teams: [...currentSession.teams, ...teamsToAdd],
+      runners: [...currentSession.runners, ...runnersToAdd],
+      times: [...currentSession.times, ...timesToAdd],
+      unit: importedSession.unit || currentSession.unit,
+      updated: Date.now()
+    }));
   }
 
   function mergeSessionData(importedSession: TimingSession) {
     // Simple merge strategy: combine runners and times
     const existingRunnerNames = new Set($session.runners.map(r => r.name.toLowerCase()));
-    const newRunners = importedSession.runners.filter(
+    const existingTeamNames = new Set($session.teams.map(t => t.name.toLowerCase()));
+
+    // Handle teams
+    const newTeams = importedSession.teams?.filter(
+      team => !existingTeamNames.has(team.name.toLowerCase())
+    ) || [];
+
+    const teamIdMapping = new Map<string, string>();
+    (importedSession.teams || []).forEach(importedTeam => {
+      const existingTeam = $session.teams.find(t => 
+        t.name.toLowerCase() === importedTeam.name.toLowerCase()
+      );
+      if (existingTeam) {
+        teamIdMapping.set(importedTeam.id, existingTeam.id);
+      } else {
+        const newId = crypto.randomUUID();
+        teamIdMapping.set(importedTeam.id, newId);
+        newTeams.push({ ...importedTeam, id: newId });
+      }
+    });
+
+    // Handle runners
+    const newRunners = (importedSession.runners || []).filter(
       runner => !existingRunnerNames.has(runner.name.toLowerCase())
     );
 
-    // Create a mapping of old runner IDs to new ones for imported data
     const runnerIdMapping = new Map<string, string>();
-    importedSession.runners.forEach(importedRunner => {
+    (importedSession.runners || []).forEach(importedRunner => {
       const existingRunner = $session.runners.find(r => 
         r.name.toLowerCase() === importedRunner.name.toLowerCase()
       );
@@ -105,13 +271,14 @@
         runnerIdMapping.set(importedRunner.id, existingRunner.id);
       } else {
         const newId = crypto.randomUUID();
+        const newTeamId = teamIdMapping.get(importedRunner.teamId) || importedRunner.teamId;
         runnerIdMapping.set(importedRunner.id, newId);
-        newRunners.push({ ...importedRunner, id: newId });
+        newRunners.push({ ...importedRunner, id: newId, teamId: newTeamId });
       }
     });
 
     // Map imported times to correct runner IDs
-    const newTimes = importedSession.times.map(time => ({
+    const newTimes = (importedSession.times || []).map(time => ({
       ...time,
       runnerId: runnerIdMapping.get(time.runnerId) || time.runnerId
     }));
@@ -119,11 +286,29 @@
     // Update session with merged data
     session.update(currentSession => ({
       ...currentSession,
+      teams: [...currentSession.teams, ...newTeams],
       runners: [...currentSession.runners, ...newRunners],
       times: [...currentSession.times, ...newTimes],
       unit: importedSession.unit || currentSession.unit,
       updated: Date.now()
     }));
+  }
+
+  function cancelImport() {
+    previewData = null;
+    showPreview = false;
+    importStatus = '';
+  }
+
+  function getImportSummary(): string {
+    if (!previewData) return '';
+    
+    const teams = previewData.teams?.length || 0;
+    const runners = previewData.runners?.length || 0;
+    const times = previewData.times?.length || 0;
+    const races = new Set(previewData.times?.map(t => t.raceName).filter(Boolean)).size;
+    
+    return `${teams} teams, ${runners} runners, ${times} times across ${races} races`;
   }
 
   // Check camera support on mount
@@ -145,71 +330,164 @@
     <p>Import timing data from other devices or backup files</p>
   </div>
 
-  <div class="import-methods">
-    {#if hasCamera}
-      <div class="method-card">
-        <h3>📱 Scan QR Code</h3>
-        <p>Scan a QR code generated by another timer device</p>
-        
-        {#if !isScanning}
-          <button class="method-btn primary" on:click={startScanning}>
-            Start Camera
-          </button>
-        {:else}
-          <div class="scanner-container">
-            <video bind:this={videoElement} class="scanner-video"></video>
-            <button class="stop-btn" on:click={stopScanning}>
-              Stop Scanning
+  {#if !showPreview}
+    <div class="import-methods">
+      {#if hasCamera}
+        <div class="method-card">
+          <h3>📱 Scan QR Code</h3>
+          <p>Scan a QR code generated by another timer device</p>
+          
+          {#if !isScanning}
+            <button class="method-btn primary" on:click={startScanning}>
+              Start Camera
             </button>
-          </div>
-        {/if}
+          {:else}
+            <div class="scanner-container">
+              <video bind:this={videoElement} class="scanner-video"></video>
+              <button class="stop-btn" on:click={stopScanning}>
+                Stop Scanning
+              </button>
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <div class="method-card">
+        <h3>📁 Upload File</h3>
+        <p>Import timing data from a JSON backup file</p>
+        
+        <input 
+          bind:this={fileInput}
+          type="file" 
+          accept=".json"
+          on:change={handleFileUpload}
+          class="file-input"
+          id="file-upload"
+        />
+        <label for="file-upload" class="method-btn secondary">
+          Choose File
+        </label>
       </div>
-    {/if}
 
-    <div class="method-card">
-      <h3>📁 Upload File</h3>
-      <p>Import timing data from a JSON backup file</p>
-      
-      <input 
-        bind:this={fileInput}
-        type="file" 
-        accept=".json"
-        on:change={handleFileUpload}
-        class="file-input"
-        id="file-upload"
-      />
-      <label for="file-upload" class="method-btn secondary">
-        Choose File
-      </label>
+      <div class="method-card">
+        <h3>🔄 Manual Import</h3>
+        <p>Paste JSON data directly</p>
+        
+        <textarea 
+          placeholder="Paste JSON data here..."
+          class="json-input"
+          on:paste={(e) => {
+            setTimeout(() => handleManualImport(e), 100);
+          }}
+        ></textarea>
+      </div>
     </div>
+  {:else}
+    <div class="preview-section">
+      <div class="preview-header">
+        <h3>Import Preview</h3>
+        <div class="preview-summary">
+          <strong>{previewData?.name || 'Imported Session'}</strong><br>
+          {getImportSummary()}
+        </div>
+      </div>
 
-    <div class="method-card">
-      <h3>🔄 Manual Import</h3>
-      <p>Paste JSON data directly</p>
-      
-      <textarea 
-        placeholder="Paste JSON data here..."
-        class="json-input"
-        on:paste={(e) => {
-          setTimeout(() => {
-            try {
-              const data = e.target.value;
-              if (data.trim()) {
-                const sessionData = JSON.parse(data);
-                mergeSessionData(sessionData);
-                importStatus = 'Data imported successfully!';
-                e.target.value = '';
-                setTimeout(() => importStatus = '', 3000);
-              }
-            } catch (error) {
-              importStatus = 'Invalid JSON format';
-              setTimeout(() => importStatus = '', 3000);
-            }
-          }, 100);
-        }}
-      ></textarea>
+      <div class="import-mode-section">
+        <h4>How would you like to import this data?</h4>
+        <div class="mode-options">
+          <label class="mode-option">
+            <input type="radio" bind:group={importMode} value="merge" />
+            <div class="option-content">
+              <div class="option-title">🔄 Merge</div>
+              <div class="option-description">Combine with existing data (recommended)</div>
+            </div>
+          </label>
+
+          <label class="mode-option">
+            <input type="radio" bind:group={importMode} value="selective" />
+            <div class="option-content">
+              <div class="option-title">🎯 Selective</div>
+              <div class="option-description">Choose specific teams, races, or data types</div>
+            </div>
+          </label>
+
+          <label class="mode-option">
+            <input type="radio" bind:group={importMode} value="replace" />
+            <div class="option-content">
+              <div class="option-title">⚠️ Replace All</div>
+              <div class="option-description">Replace all current data (destructive)</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {#if importMode === 'selective'}
+        <div class="selective-options">
+          <h4>Select what to import:</h4>
+          
+          <div class="data-type-options">
+            <label class="checkbox-option">
+              <input type="checkbox" bind:checked={importTeams} />
+              <span>Teams ({previewData?.teams?.length || 0})</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" bind:checked={importRunners} />
+              <span>Runners ({previewData?.runners?.length || 0})</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" bind:checked={importTimes} />
+              <span>Times ({previewData?.times?.length || 0})</span>
+            </label>
+          </div>
+
+          {#if importTeams && previewData?.teams?.length}
+            <div class="selection-group">
+              <h5>Select Teams:</h5>
+              <div class="team-checkboxes">
+                {#each previewData.teams as team}
+                  <label class="checkbox-option">
+                    <input 
+                      type="checkbox" 
+                      bind:group={selectedTeamIds} 
+                      value={team.id} 
+                    />
+                    <span style="color: {team.color}">{team.name}</span>
+                  </label>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          {#if importTimes && selectedRaces.length > 0}
+            <div class="selection-group">
+              <h5>Select Races:</h5>
+              <div class="race-checkboxes">
+                {#each [...new Set(previewData?.times?.map(t => t.raceName).filter(Boolean))] as race}
+                  <label class="checkbox-option">
+                    <input 
+                      type="checkbox" 
+                      bind:group={selectedRaces} 
+                      value={race} 
+                    />
+                    <span>{race}</span>
+                  </label>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <div class="preview-actions">
+        <button class="action-btn secondary" on:click={cancelImport}>
+          Cancel
+        </button>
+        <button class="action-btn primary" on:click={executeImport}>
+          {importMode === 'replace' ? 'Replace Data' : 'Import Data'}
+        </button>
+      </div>
     </div>
-  </div>
+  {/if}
 
   {#if importStatus}
     <div class="status-message" class:success={importStatus.includes('success')} class:error={importStatus.includes('Failed') || importStatus.includes('Invalid')}>
@@ -217,21 +495,24 @@
     </div>
   {/if}
 
-  <div class="info-section">
-    <h4>Import Information</h4>
-    <ul>
-      <li>Importing will merge data with your current session</li>
-      <li>Runners with the same name will be combined</li>
-      <li>Existing times will be preserved</li>
-      <li>New runners and times will be added</li>
-    </ul>
-  </div>
+  {#if !showPreview}
+    <div class="info-section">
+      <h4>Import Information</h4>
+      <ul>
+        <li><strong>Merge:</strong> Combines imported data with existing data</li>
+        <li><strong>Selective:</strong> Choose specific teams, races, or data types to import</li>
+        <li><strong>Replace:</strong> Completely replaces all current data (use with caution)</li>
+        <li>Runners with the same name will be combined automatically</li>
+        <li>Teams with the same name will be combined automatically</li>
+      </ul>
+    </div>
+  {/if}
 </div>
 
 <style>
   .import-container {
     padding: 1rem;
-    max-width: 600px;
+    max-width: 700px;
     margin: 0 auto;
   }
 
@@ -354,6 +635,175 @@
     box-shadow: 0 0 0 3px var(--primary-alpha);
   }
 
+  .preview-section {
+    background: var(--bg-secondary);
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+
+  .preview-header {
+    margin-bottom: 2rem;
+  }
+
+  .preview-header h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+  }
+
+  .preview-summary {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+
+  .import-mode-section {
+    margin-bottom: 2rem;
+  }
+
+  .import-mode-section h4 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+  }
+
+  .mode-options {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .mode-option {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--bg-primary);
+    border: 2px solid var(--border);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .mode-option:hover {
+    border-color: var(--primary);
+    background: var(--bg-hover);
+  }
+
+  .mode-option:has(input:checked) {
+    border-color: var(--primary);
+    background: var(--primary-alpha);
+  }
+
+  .mode-option input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+  }
+
+  .option-content {
+    flex: 1;
+  }
+
+  .option-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+  }
+
+  .option-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .selective-options {
+    background: var(--bg-primary);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .selective-options h4 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+  }
+
+  .data-type-options {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.2s ease;
+  }
+
+  .checkbox-option:hover {
+    background: var(--bg-hover);
+  }
+
+  .checkbox-option input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+
+  .selection-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .selection-group h5 {
+    margin: 0 0 0.75rem 0;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .team-checkboxes, .race-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .preview-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+  }
+
+  .action-btn {
+    padding: 0.875rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .action-btn.primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  .action-btn.primary:hover {
+    background: var(--primary-hover);
+  }
+
+  .action-btn.secondary {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .action-btn.secondary:hover {
+    background: var(--bg-hover);
+  }
+
   .status-message {
     padding: 1rem;
     border-radius: 0.5rem;
@@ -392,5 +842,20 @@
 
   .info-section li {
     margin-bottom: 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    .data-type-options {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .team-checkboxes, .race-checkboxes {
+      grid-template-columns: 1fr;
+    }
+    
+    .preview-actions {
+      flex-direction: column;
+    }
   }
 </style>
