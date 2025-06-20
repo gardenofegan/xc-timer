@@ -11,6 +11,7 @@
   let hasCamera = false;
   let cameraCheckComplete = false;
   let cameraError = '';
+  let showScanner = false; // New state to control scanner visibility
 
   // Import mode and preview
   let importMode: 'merge' | 'replace' | 'selective' = 'merge';
@@ -75,14 +76,29 @@
   }
 
   async function startScanning() {
-    if (!videoElement || isScanning || !hasCamera) {
-      console.log('Cannot start scanning:', { videoElement: !!videoElement, isScanning, hasCamera });
+    if (isScanning || !hasCamera) {
+      console.log('Cannot start scanning:', { isScanning, hasCamera });
+      return;
+    }
+    
+    // Show the scanner UI first
+    showScanner = true;
+    importStatus = 'Initializing camera...';
+    
+    // Wait for the video element to be rendered
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    if (!videoElement) {
+      console.error('Video element still not available after waiting');
+      importStatus = 'Failed to initialize camera interface';
+      showScanner = false;
+      setTimeout(() => importStatus = '', 3000);
       return;
     }
     
     try {
       importStatus = 'Starting camera...';
-      console.log('Creating QR scanner...');
+      console.log('Creating QR scanner with video element:', videoElement);
       
       qrScanner = new QrScanner(
         videoElement,
@@ -125,6 +141,7 @@
       
       importStatus = errorMessage;
       isScanning = false;
+      showScanner = false;
       
       // Clear error after 10 seconds
       setTimeout(() => {
@@ -143,6 +160,7 @@
       console.log('QR scanner destroyed');
     }
     isScanning = false;
+    showScanner = false;
     if (!importStatus.includes('QR code detected') && !importStatus.includes('Data loaded')) {
       importStatus = '';
     }
@@ -432,7 +450,7 @@
               🔄 Retry Camera Check
             </button>
           </div>
-        {:else if !isScanning}
+        {:else if !showScanner}
           <button class="method-btn primary" on:click={startScanning}>
             📷 Start Camera
           </button>
