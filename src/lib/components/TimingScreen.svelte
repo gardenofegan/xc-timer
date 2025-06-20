@@ -17,14 +17,12 @@
   let availableRunners: Runner[] = [];
   let completedRunners: Array<Runner & { recordedTime: string }> = [];
 
-  $: {
-    // Update available runners when teams, checkpoint selection, or session times change
-    if (selectedTeamIds.length > 0 && selectedCheckpoint) {
-      updateAvailableRunners();
-    } else {
-      availableRunners = [];
-      completedRunners = [];
-    }
+  // Update available runners when teams, checkpoint selection, or session times change
+  $: if (selectedTeamIds.length > 0 && selectedCheckpoint && $session) {
+    updateAvailableRunners();
+  } else {
+    availableRunners = [];
+    completedRunners = [];
   }
 
   function updateAvailableRunners() {
@@ -92,8 +90,6 @@
       }),
       updated: Date.now()
     }));
-    
-    // The reactive statement will automatically update the runner lists
   }
 
   function formatTimerDisplay(milliseconds: number): string {
@@ -124,8 +120,6 @@
       checkpoint: selectedCheckpoint,
       time: timeString
     });
-    
-    // The reactive statement will automatically update the runner lists
   }
 
   function getTeamById(teamId: string): Team | undefined {
