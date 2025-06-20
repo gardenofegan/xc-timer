@@ -8,6 +8,9 @@ export async function shareData(session: TimingSession) {
     url: createShareableData(session)
   };
 
+console.log(navigator.canShare(data));
+
+  
   if (navigator.share && navigator.canShare && navigator.canShare(data)) {
     try {
       console.log('Successful navigator Web API share');
