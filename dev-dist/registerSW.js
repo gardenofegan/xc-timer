@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/xc-timer/dev-sw.js?dev-sw', { scope: '/xc-timer/', type: 'classic' })
