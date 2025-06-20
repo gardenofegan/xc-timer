@@ -101,6 +101,11 @@
     }));
   }
 
+  function unsetRunnerTime(runner: Runner & { recordedTime: string }) {
+    // Remove the specific time entry for this runner and checkpoint
+    session.removeTime(runner.id, selectedCheckpoint);
+  }
+
   function formatTimerDisplay(milliseconds: number): string {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -296,8 +301,17 @@
                 <div class="runner-name">{runner.name}</div>
                 <div class="runner-details">{runner.grade} • {team?.name}</div>
               </div>
-              <div class="recorded-time">
-                {runner.recordedTime}
+              <div class="time-actions">
+                <div class="recorded-time">
+                  {runner.recordedTime}
+                </div>
+                <button 
+                  class="unset-btn"
+                  on:click={() => unsetRunnerTime(runner)}
+                  title="Remove time and return {runner.name} to active timing"
+                >
+                  ↩️
+                </button>
               </div>
             </div>
           {/each}
@@ -659,6 +673,12 @@
     border: 1px solid var(--border);
   }
 
+  .time-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
   .recorded-time {
     font-family: 'Monaco', 'Menlo', monospace;
     font-size: 1.125rem;
@@ -667,6 +687,27 @@
     background: var(--success-bg);
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
+  }
+
+  .unset-btn {
+    background: var(--warning);
+    color: white;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    min-width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .unset-btn:hover {
+    background: var(--warning-hover);
+    transform: scale(1.1);
   }
 
   .setup-message, .no-runners-message {
@@ -714,6 +755,12 @@
       flex-direction: column;
       gap: 1rem;
       align-items: stretch;
+    }
+
+    .time-actions {
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: flex-end;
     }
   }
 </style>
