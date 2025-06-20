@@ -10,6 +10,7 @@ export async function shareData(session: TimingSession) {
 
   if (navigator.share && navigator.canShare && navigator.canShare(data)) {
     try {
+      console.log('am I here?');
       await navigator.share(data);
       return true;
     } catch (err) {
