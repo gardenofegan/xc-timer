@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/cross-country-timer/sw.js', { scope: '/cross-country-timer/' })})}
