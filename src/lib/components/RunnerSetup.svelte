@@ -11,9 +11,13 @@
   let teamColor = '#22c55e';
   let showTeamForm = false;
 
-  // Confirmation dialog state
-  let showRemoveConfirmation = false;
+  // Confirmation dialog state for runners
+  let showRemoveRunnerConfirmation = false;
   let runnerToRemove: { id: string; name: string; teamName: string } | null = null;
+
+  // Confirmation dialog state for teams
+  let showRemoveTeamConfirmation = false;
+  let teamToRemove: { id: string; name: string; runnerCount: number } | null = null;
 
   const teamColors = [
     '#22c55e', '#3b82f6', '#f97316', '#ef4444', 
@@ -34,11 +38,30 @@
     showTeamForm = false;
   }
 
-  function removeTeam(teamId: string) {
-    session.removeTeam(teamId);
-    if (selectedTeamId === teamId) {
-      selectedTeamId = '';
+  function confirmRemoveTeam(teamId: string) {
+    const team = $session.teams.find(t => t.id === teamId);
+    const runnerCount = getRunnersByTeam(teamId).length;
+    
+    if (team) {
+      teamToRemove = {
+        id: team.id,
+        name: team.name,
+        runnerCount
+      };
+      showRemoveTeamConfirmation = true;
     }
+  }
+
+  function executeRemoveTeam() {
+    if (teamToRemove) {
+      session.removeTeam(teamToRemove.id);
+      cancelRemoveTeam();
+    }
+  }
+
+  function cancelRemoveTeam() {
+    teamToRemove = null;
+    showRemoveTeamConfirmation = false;
   }
 
   function addRunner() {
@@ -65,7 +88,7 @@
         name: runner.name,
         teamName: team.name
       };
-      showRemoveConfirmation = true;
+      showRemoveRunnerConfirmation = true;
     }
   }
 
@@ -78,7 +101,7 @@
 
   function cancelRemoveRunner() {
     runnerToRemove = null;
-    showRemoveConfirmation = false;
+    showRemoveRunnerConfirmation = false;
   }
 
   function getTeamById(teamId: string): Team | undefined {
@@ -98,8 +121,12 @@
       }
     }
     
-    if (event.key === 'Escape' && showRemoveConfirmation) {
-      cancelRemoveRunner();
+    if (event.key === 'Escape') {
+      if (showRemoveRunnerConfirmation) {
+        cancelRemoveRunner();
+      } else if (showRemoveTeamConfirmation) {
+        cancelRemoveTeam();
+      }
     }
   }
 </script>
@@ -196,7 +223,7 @@
           </div>
           <button 
             class="remove-btn"
-            on:click={() => removeTeam(team.id)}
+            on:click={() => confirmRemoveTeam(team.id)}
             title="Remove team"
           >
             ✕
@@ -301,8 +328,39 @@
   </div>
 </div>
 
-<!-- Confirmation Dialog -->
-{#if showRemoveConfirmation && runnerToRemove}
+<!-- Team Removal Confirmation Dialog -->
+{#if showRemoveTeamConfirmation && teamToRemove}
+  <div class="modal-overlay" on:click={cancelRemoveTeam}>
+    <div class="confirmation-dialog" on:click|stopPropagation>
+      <div class="dialog-header">
+        <h3>Remove Team</h3>
+      </div>
+      
+      <div class="dialog-content">
+        <p>Are you sure you'd like to remove the team <strong>{teamToRemove.name}</strong>?</p>
+        {#if teamToRemove.runnerCount > 0}
+          <p class="warning-text">
+            This will remove {teamToRemove.runnerCount} runner{teamToRemove.runnerCount === 1 ? '' : 's'} and all their recorded times.
+          </p>
+        {:else}
+          <p class="info-text">This team has no runners, so no additional data will be removed.</p>
+        {/if}
+      </div>
+      
+      <div class="dialog-actions">
+        <button class="dialog-btn cancel-btn" on:click={cancelRemoveTeam}>
+          Cancel
+        </button>
+        <button class="dialog-btn confirm-btn" on:click={executeRemoveTeam}>
+          Remove Team
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Runner Removal Confirmation Dialog -->
+{#if showRemoveRunnerConfirmation && runnerToRemove}
   <div class="modal-overlay" on:click={cancelRemoveRunner}>
     <div class="confirmation-dialog" on:click|stopPropagation>
       <div class="dialog-header">
@@ -670,6 +728,12 @@
 
   .warning-text {
     color: var(--warning) !important;
+    font-size: 0.875rem;
+    font-style: italic;
+  }
+
+  .info-text {
+    color: var(--text-secondary) !important;
     font-size: 0.875rem;
     font-style: italic;
   }
